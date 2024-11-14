@@ -1,0 +1,75 @@
+{
+  // Toylang parser, generated using PPARSER.
+  #include "toylang_lexer.h"
+  #include "ast.h"
+}
+
+let: 'let' {IDENTIFIER} '=' %expr ';' => {
+  token_t *name_ptr = %{1%};
+  token_t name = *name_ptr;
+  free(name_ptr);
+  ast_t *expr_ptr = %{3%};
+  return new_let(name, expr_ptr);
+}
+
+stmt: 
+  | %let => {return %{0%};} 
+
+leaf:
+  | {INTLIT} => {
+      token_t *lit_ptr = %{0%};
+      token_t lit = *lit_ptr;
+      free(lit_ptr);
+      return new_intlit(lit);
+    }
+  | {IDENTIFIER} => {
+      token_t *lit_ptr = %{0%};
+      token_t lit = *lit_ptr;
+      free(lit_ptr);
+      return new_identifier(lit);
+  }
+
+expr: 
+  | %leaf '+' %leaf => {
+      ast_t *lh = %{0%};
+      ast_t *rh = %{2%};
+      token_t *op_ptr = %{1%};
+      token_t op = *op_ptr;
+      free(op_ptr);
+      return new_binop(op, lh, rh);
+    }
+  | %leaf '*' %leaf => {
+      ast_t *lh = %{0%};
+      ast_t *rh = %{2%};
+      token_t *op_ptr = %{1%};
+      token_t op = *op_ptr;
+      free(op_ptr);
+      return new_binop(op, lh, rh);
+    }
+  | %leaf => {
+      return %{0%};
+    }
+
+program:
+  | => {
+      size_t prog_cap = 16;
+      size_t prog_count = 0;
+      ast_t ** res = malloc(sizeof(ast_t*) * prog_cap);
+      lexer_t cpy = *l;
+      while (!is_done(l)) {
+        int w = false;
+        ast_t *stmt = parse_stmt(&cpy, &w);
+        if (!w)
+          break;
+        *l = cpy;
+        if (prog_count >= prog_cap) {
+          prog_cap *= 2;
+          res = realloc(res, sizeof(ast_t *) * prog_cap);
+        }
+        res[prog_count++] = stmt;
+      }
+      *worked = 1;
+      res = realloc(res, sizeof(ast_t *) * (prog_count + 1));
+      res[prog_count] = NULL;
+      return new_program(res, prog_count);
+    }
